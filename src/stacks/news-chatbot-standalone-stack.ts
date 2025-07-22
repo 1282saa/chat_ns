@@ -156,6 +156,7 @@ export class NewsChatbotStandaloneStack extends Stack {
     const websiteBucket = new s3.Bucket(this, "WebsiteBucket", {
       bucketName: `news-chatbot-frontend-${this.account}-${this.region}`,
       publicReadAccess: true,
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ACLS,
       websiteIndexDocument: "index.html",
       removalPolicy: RemovalPolicy.DESTROY,
       autoDeleteObjects: true,
