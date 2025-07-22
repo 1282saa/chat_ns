@@ -17,6 +17,7 @@
     "generate-prompt": "cd src/prompt/orchestration/text2sql && python3 prompt_generator.py anthropic/claude/sonnet3.5 && python3 prompt_generator.py amazon/nova/pro1.0"
   },
   "devDependencies": {
+    "@aws-cdk/assert": "^2.68.0",
     "@types/jest": "^29.5.14",
     "@types/node": "22.7.9",
     "aws-cdk": "^2.174.0",
