@@ -152,19 +152,19 @@ export class NewsChatbotStandaloneStack extends Stack {
     const healthResource = this.chatbotApi.root.addResource("health");
     healthResource.addMethod("GET", lambdaIntegration);
 
-    // S3 bucket for hosting the frontend
-    const websiteBucket = new s3.Bucket(this, "WebsiteBucket", {
-      bucketName: `news-chatbot-frontend-${this.account}-${this.region}`,
+    // S3 bucket for hosting the frontend - with new name to force fresh deployment
+    const websiteBucket = new s3.Bucket(this, "WebsiteBucketV2", {
+      bucketName: `news-chatbot-frontend-v2-${this.account}-${this.region}`,
       publicReadAccess: true,
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ACLS,
       websiteIndexDocument: "index.html",
       removalPolicy: RemovalPolicy.DESTROY,
       autoDeleteObjects: true,
-      versioned: false, // Disable versioning to prevent caching
+      versioned: false,
     });
 
-    // CloudFront distribution for the website
-    const distribution = new cloudfront.CloudFrontWebDistribution(this, "WebsiteDistribution", {
+    // CloudFront distribution for the website - with new name
+    const distribution = new cloudfront.CloudFrontWebDistribution(this, "WebsiteDistributionV2", {
       originConfigs: [
         {
           s3OriginSource: {
@@ -188,18 +188,17 @@ export class NewsChatbotStandaloneStack extends Stack {
       ],
     });
 
-    // Deploy frontend files to S3
-    new s3deploy.BucketDeployment(this, "DeployWebsite", {
+    // Deploy frontend files to S3 - simplified deployment
+    new s3deploy.BucketDeployment(this, "DeployWebsiteV2", {
       sources: [s3deploy.Source.asset(path.join(__dirname, "../frontend"))],
       destinationBucket: websiteBucket,
-      distribution: distribution, // This will invalidate CloudFront cache
-      distributionPaths: ["/*"],  // Invalidate all paths
+      distribution: distribution,
+      distributionPaths: ["/*"],
       cacheControl: [
         s3deploy.CacheControl.setPublic(),
-        s3deploy.CacheControl.noCache(), // Force no caching for now
+        s3deploy.CacheControl.noCache(),
       ],
-      prune: true, // Remove old files
-      memoryLimit: 512,
+      prune: true,
     });
 
     // CloudFormation outputs
