@@ -160,6 +160,7 @@ export class NewsChatbotStandaloneStack extends Stack {
       websiteIndexDocument: "index.html",
       removalPolicy: RemovalPolicy.DESTROY,
       autoDeleteObjects: true,
+      versioned: false, // Disable versioning to prevent caching
     });
 
     // Deploy frontend files to S3
@@ -168,9 +169,10 @@ export class NewsChatbotStandaloneStack extends Stack {
       destinationBucket: websiteBucket,
       cacheControl: [
         s3deploy.CacheControl.setPublic(),
-        s3deploy.CacheControl.maxAge(Duration.hours(1)),
+        s3deploy.CacheControl.noCache(), // Force no caching for now
       ],
       prune: true, // Remove old files
+      memoryLimit: 512,
     });
 
     // CloudFront distribution for the website
