@@ -21,9 +21,12 @@ import {
   RemovalPolicy,
 } from "aws-cdk-lib";
 import * as apigateway from "aws-cdk-lib/aws-apigateway";
+import * as cloudfront from "aws-cdk-lib/aws-cloudfront";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as logs from "aws-cdk-lib/aws-logs";
+import * as s3 from "aws-cdk-lib/aws-s3";
+import * as s3deploy from "aws-cdk-lib/aws-s3-deployment";
 import { PythonFunction } from "@aws-cdk/aws-lambda-python-alpha";
 import { NagSuppressions } from "cdk-nag";
 import { Construct } from "constructs";
@@ -35,6 +38,7 @@ export interface NewsChatbotStandaloneStackProps extends StackProps {
 export class NewsChatbotStandaloneStack extends Stack {
   public readonly chatbotApi: apigateway.RestApi;
   public readonly chatbotFunction: PythonFunction;
+  public readonly api: apigateway.RestApi;
 
   constructor(
     scope: Construct,
@@ -103,7 +107,7 @@ export class NewsChatbotStandaloneStack extends Stack {
     });
 
     // API Gateway for REST API
-    this.chatbotApi = new apigateway.RestApi(this, "ChatbotApi", {
+    this.api = this.chatbotApi = new apigateway.RestApi(this, "ChatbotApi", {
       restApiName: "News Chatbot API",
       description: "REST API for News Chatbot service",
       deployOptions: {
@@ -148,6 +152,45 @@ export class NewsChatbotStandaloneStack extends Stack {
     const healthResource = this.chatbotApi.root.addResource("health");
     healthResource.addMethod("GET", lambdaIntegration);
 
+    // S3 bucket for hosting the frontend
+    const websiteBucket = new s3.Bucket(this, "WebsiteBucket", {
+      bucketName: `news-chatbot-frontend-${this.account}-${this.region}`,
+      publicReadAccess: true,
+      websiteIndexDocument: "index.html",
+      removalPolicy: RemovalPolicy.DESTROY,
+      autoDeleteObjects: true,
+    });
+
+    // Deploy frontend files to S3
+    new s3deploy.BucketDeployment(this, "DeployWebsite", {
+      sources: [s3deploy.Source.asset(path.join(__dirname, "../frontend"))],
+      destinationBucket: websiteBucket,
+      cacheControl: [
+        s3deploy.CacheControl.setPublic(),
+        s3deploy.CacheControl.maxAge(Duration.hours(1)),
+      ],
+    });
+
+    // CloudFront distribution for the website
+    const distribution = new cloudfront.CloudFrontWebDistribution(this, "WebsiteDistribution", {
+      originConfigs: [
+        {
+          s3OriginSource: {
+            s3BucketSource: websiteBucket,
+          },
+          behaviors: [{ isDefaultBehavior: true }],
+        },
+      ],
+      defaultRootObject: "index.html",
+      errorConfigurations: [
+        {
+          errorCode: 404,
+          responseCode: 200,
+          responsePagePath: "/index.html",
+        },
+      ],
+    });
+
     // CloudFormation outputs
     new CfnOutput(this, "ChatbotApiUrl", {
       value: this.chatbotApi.url,
@@ -165,6 +208,18 @@ export class NewsChatbotStandaloneStack extends Stack {
       value: props.knowledgeBaseId,
       description: "ID of the Bedrock Knowledge Base being used",
       exportName: "NewsChatbotKnowledgeBaseId",
+    });
+
+    new CfnOutput(this, "WebsiteUrl", {
+      value: `https://${distribution.distributionDomainName}`,
+      description: "Frontend Website URL",
+      exportName: "NewsChatbotWebsiteUrl",
+    });
+
+    new CfnOutput(this, "WebsiteBucket", {
+      value: websiteBucket.bucketName,
+      description: "S3 Bucket for Frontend",
+      exportName: "NewsChatbotWebsiteBucket",
     });
 
     // CDK NAG suppressions for security compliance
