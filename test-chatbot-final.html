@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>서울경제 뉴스 챗봇</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      .btn-neo {
+        @apply px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 
+               border border-gray-200
+               bg-white 
+               hover:shadow-md hover:scale-105 active:scale-95
+               text-gray-700;
+      }
+
+      .card-neo {
+        @apply bg-white border border-gray-200 
+               shadow-sm hover:shadow-md transition-all duration-300;
+      }
+
+      .card-dark {
+        @apply border border-gray-200;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1),
+          0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      }
+
+      /* 채팅 관련 스타일 */
+      .message {
+        margin-bottom: 1rem;
+        animation: slideIn 0.3s ease-out;
+      }
+
+      .message.user {
+        display: flex;
+        justify-content: flex-end;
+      }
+
+      .message.bot {
+        display: flex;
+        justify-content: flex-start;
+      }
+
+      .message-bubble {
+        max-width: 70%;
+        padding: 12px 16px;
+        border-radius: 18px;
+        word-wrap: break-word;
+        line-height: 1.4;
+      }
+
+      .message.user .message-bubble {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-bottom-right-radius: 4px;
+      }
+
+      .message.bot .message-bubble {
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-bottom-left-radius: 4px;
+        color: #374151;
+        line-height: 1.7;
+      }
+
+      .footnote {
+        color: #3b82f6;
+        text-decoration: none;
+        font-weight: 600;
+        cursor: pointer;
+        padding: 1px 3px;
+        border-radius: 3px;
+        transition: all 0.2s;
+      }
+
+      .footnote:hover {
+        background-color: #3b82f6;
+        color: white;
+      }
+
+      .sources {
+        margin-top: 20px;
+        padding: 16px 0 0 0;
+        border-top: 1px solid #e5e7eb;
+      }
+
+      .sources-header {
+        margin-bottom: 12px;
+        font-size: 14px;
+        color: #374151;
+        font-weight: 600;
+      }
+
+      .source-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 16px;
+        margin: 8px 0;
+        background: #fafbfc;
+        border: 1px solid #e5e8eb;
+        border-radius: 12px;
+        transition: all 0.2s ease;
+        position: relative;
+      }
+
+      .source-item:hover {
+        background: #f1f5f9;
+        border-color: #cbd5e1;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+      }
+
+      .source-number {
+        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        color: white;
+        width: 28px;
+        height: 28px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 13px;
+        font-weight: 700;
+        flex-shrink: 0;
+        box-shadow: 0 2px 4px rgba(59, 130, 246, 0.2);
+      }
+
+      .source-content {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .source-title {
+        font-weight: 600;
+        color: #111827;
+        line-height: 1.4;
+        margin-bottom: 6px;
+        font-size: 15px;
+      }
+
+      .source-meta {
+        font-size: 13px;
+        color: #6b7280;
+        margin-bottom: 8px;
+      }
+
+      .source-link {
+        background: #3b82f6;
+        color: white;
+        padding: 6px 12px;
+        border-radius: 8px;
+        text-decoration: none;
+        font-size: 13px;
+        font-weight: 600;
+        transition: all 0.2s;
+        flex-shrink: 0;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        box-shadow: 0 1px 3px rgba(59, 130, 246, 0.2);
+      }
+
+      .source-link:hover {
+        background: #2563eb;
+        transform: translateY(-1px);
+      }
+
+      .source-link.disabled {
+        background: #9ca3af;
+        cursor: not-allowed;
+      }
+
+      .loading-dots span {
+        animation: loading 1.4s infinite ease-in-out both;
+      }
+
+      .loading-dots span:nth-child(1) {
+        animation-delay: -0.32s;
+      }
+
+      .loading-dots span:nth-child(2) {
+        animation-delay: -0.16s;
+      }
+
+      @keyframes loading {
+        0%,
+        80%,
+        100% {
+          transform: scale(0);
+        }
+        40% {
+          transform: scale(1);
+        }
+      }
+
+      @keyframes slideIn {
+        from {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .error-message {
+        color: #dc2626;
+        background-color: #fef2f2;
+        border: 1px solid #fecaca;
+        padding: 8px 12px;
+        border-radius: 6px;
+      }
+    </style>
+  </head>
+  <body class="bg-gray-50 transition-all duration-500">
+    <div class="h-screen flex flex-col bg-gray-50 transition-all duration-500">
+      <!-- Header -->
+      <div class="flex-shrink-0 bg-white border-b border-gray-200 px-6 py-4">
+        <div class="max-w-4xl mx-auto">
+          <div class="flex items-center justify-between">
+            <!-- Back Button -->
+            <button
+              onclick="history.back()"
+              title="뒤로 가기"
+              class="flex items-center gap-1 text-sm text-gray-600 hover:text-blue-600 transition-colors"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke-width="2"
+                stroke="currentColor"
+                class="w-4 h-4"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M15 19l-7-7 7-7"
+                />
+              </svg>
+              <span>뒤로</span>
+            </button>
+            <div class="flex items-center gap-3">
+              <div class="bg-blue-100 p-2 rounded-lg">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke-width="1.5"
+                  stroke="currentColor"
+                  class="h-6 w-6 text-blue-600"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M12 7.5h1.5m-1.5 3h1.5m-7.5 3h7.5m-7.5 3h7.5m3-9h3.375c.621 0 1.125.504 1.125 1.125V18a2.25 2.25 0 0 1-2.25 2.25M16.5 7.5V18a2.25 2.25 0 0 1-2.25 2.25M16.5 7.5V4.875c0-.621-.504-1.125-1.125-1.125H4.125C3.504 3.75 3 4.254 3 4.875v12.75c0 .621.504 1.125 1.125 1.125h2.25m8.5-7.5V7.5"
+                  ></path>
+                </svg>
+              </div>
+              <div>
+                <h1 class="text-xl font-bold text-gray-900">서울경제</h1>
+                <p class="text-sm text-gray-600">AI 뉴스 어시스턴트</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Main Content -->
+      <div class="flex-1 overflow-hidden">
+        <div class="h-full bg-white transition-colors duration-300">
+          <div
+            class="flex flex-col h-full bg-gray-50 transition-colors duration-300"
+          >
+            <!-- Chat Messages Area -->
+            <div class="flex-1 overflow-y-auto px-6 py-6 min-h-0 bg-gray-50">
+              <div class="max-w-4xl mx-auto space-y-6">
+                <!-- Welcome Message -->
+                <div
+                  class="flex flex-col items-center justify-center py-12"
+                  id="welcomeMessage"
+                >
+                  <div
+                    class="bg-white card-dark rounded-2xl shadow-md p-8 max-w-2xl w-full transition-colors duration-300"
+                  >
+                    <div class="flex justify-center mb-6">
+                      <div class="bg-blue-100 p-3 rounded-full">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke-width="1.5"
+                          stroke="currentColor"
+                          class="h-8 w-8 text-blue-600"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            d="M12 7.5h1.5m-1.5 3h1.5m-7.5 3h7.5m-7.5 3h7.5m3-9h3.375c.621 0 1.125.504 1.125 1.125V18a2.25 2.25 0 0 1-2.25 2.25M16.5 7.5V18a2.25 2.25 0 0 1-2.25 2.25M16.5 7.5V4.875c0-.621-.504-1.125-1.125-1.125H4.125C3.504 3.75 3 4.254 3 4.875v12.75c0 .621.504 1.125 1.125 1.125h2.25m8.5-7.5V7.5"
+                          ></path>
+                        </svg>
+                      </div>
+                    </div>
+                    <h2
+                      class="text-xl font-semibold text-center text-gray-800 mb-4"
+                    >
+                      뉴스 검색을 시작하세요
+                    </h2>
+                    <p class="text-gray-700 text-center mb-6">
+                      궁금한 경제/기업 뉴스를 물어보세요. AI가 관련 기사를 찾아
+                      요약해 드립니다.
+                    </p>
+                    <div class="space-y-4">
+                      <div class="flex items-start p-3 bg-gray-50 rounded-lg">
+                        <div class="mr-3 mt-1">
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke-width="1.5"
+                            stroke="currentColor"
+                            class="h-5 w-5 text-blue-500"
+                          >
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z"
+                            ></path>
+                          </svg>
+                        </div>
+                        <div>
+                          <p class="text-sm text-gray-700">
+                            <span class="font-medium">시작하는 방법:</span>
+                            "삼성전자", "부동산 시장", "금리 인상" 등 궁금한
+                            키워드를 입력하세요
+                          </p>
+                        </div>
+                      </div>
+                      <div class="flex items-start p-3 bg-gray-50 rounded-lg">
+                        <div class="mr-3 mt-1">
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke-width="1.5"
+                            stroke="currentColor"
+                            class="h-5 w-5 text-blue-500"
+                          >
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244"
+                            ></path>
+                          </svg>
+                        </div>
+                        <div>
+                          <p class="text-sm text-gray-700">
+                            <span class="font-medium">스마트 링크:</span> 답변의
+                            각주 [1], [2]를 클릭하면 원문 기사로 바로 이동합니다
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Chat Messages Container -->
+                <div id="chatMessages" class="space-y-6">
+                  <!-- Messages will be added here dynamically -->
+                </div>
+              </div>
+            </div>
+
+            <!-- Chat Input Area -->
+            <div class="flex-shrink-0 px-6 py-4">
+              <div class="max-w-4xl mx-auto">
+                <div
+                  class="bg-white rounded-[20px] p-4 relative transition-colors duration-300 flex flex-col gap-6 card-dark"
+                  style="min-height: 128px"
+                >
+                  <div class="flex-1 relative focus:outline-none">
+                    <textarea
+                      id="messageInput"
+                      placeholder="뉴스 키워드나 질문을 입력하세요..."
+                      class="w-full pr-14 border-0 focus:outline-none resize-none transition-all duration-300 bg-white text-gray-900"
+                      rows="1"
+                      maxlength="1000"
+                      style="
+                        height: auto;
+                        min-height: 40px;
+                        max-height: 400px;
+                        line-height: 1.5;
+                        padding: 8px 12px;
+                        overflow-y: hidden;
+                        white-space: pre-wrap;
+                        font-size: 16px;
+                        font-weight: 400;
+                        color: inherit;
+                        outline: none;
+                        box-shadow: none;
+                        vertical-align: top;
+                        margin: 0;
+                        resize: none;
+                      "
+                    ></textarea>
+                    <div
+                      class="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2"
+                    >
+                      <button
+                        id="sendButton"
+                        class="flex-shrink-0 bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-full disabled:opacity-70 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+                        title="뉴스 검색 시작"
+                        style="width: 32px; height: 32px"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke-width="1.5"
+                          stroke="currentColor"
+                          class="h-5 w-5"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5"
+                          ></path>
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-4">
+                      <div
+                        class="flex items-center gap-2 text-xs text-gray-600"
+                      >
+                        <span id="charCount">0자</span>
+                      </div>
+                    </div>
+                    <div class="flex items-center gap-3 text-xs">
+                      <div class="flex items-center gap-1 text-green-600">
+                        <div
+                          class="w-2 h-2 bg-green-600 rounded-full animate-pulse"
+                        ></div>
+                        <span>실시간 검색</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const API_URL =
+        "https://gzb9wui0z9.execute-api.ap-northeast-2.amazonaws.com/prod";
+      const chatMessages = document.getElementById("chatMessages");
+      const messageInput = document.getElementById("messageInput");
+      const sendButton = document.getElementById("sendButton");
+      const charCount = document.getElementById("charCount");
+      const welcomeMessage = document.getElementById("welcomeMessage");
+
+      // 전역 변수로 현재 메시지의 출처 저장
+      let currentSources = [];
+
+      // 문자 수 카운터 업데이트
+      messageInput.addEventListener("input", () => {
+        const length = messageInput.value.length;
+        charCount.textContent = `${length}자`;
+
+        // 텍스트 영역 자동 크기 조정
+        messageInput.style.height = "auto";
+        messageInput.style.height =
+          Math.min(messageInput.scrollHeight, 400) + "px";
+      });
+
+      // Enter 키로 메시지 전송
+      messageInput.addEventListener("keypress", function (e) {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          sendMessage();
+        }
+      });
+
+      sendButton.addEventListener("click", sendMessage);
+
+      function addMessage(
+        content,
+        isUser = false,
+        sources = null,
+        isError = false
+      ) {
+        // 첫 메시지가 추가될 때 환영 메시지 숨기기
+        if (welcomeMessage) {
+          welcomeMessage.style.display = "none";
+        }
+
+        const messageDiv = document.createElement("div");
+        messageDiv.className = `message ${isUser ? "user" : "bot"}`;
+
+        const bubbleDiv = document.createElement("div");
+        bubbleDiv.className = "message-bubble";
+
+        if (isError) {
+          bubbleDiv.innerHTML = `<div class="error-message">${content}</div>`;
+        } else {
+          // 현재 출처 저장
+          currentSources = sources || [];
+
+          // 각주 처리된 내용 표시 (클릭 시 해당 URL로 이동)
+          const processedContent = processFootnotesWithLinks(
+            content,
+            currentSources
+          );
+          bubbleDiv.innerHTML = processedContent;
+
+          // 출처 정보 표시 (참조 기사 목록)
+          if (sources && sources.length > 0) {
+            const sourcesDiv = document.createElement("div");
+            sourcesDiv.className = "sources";
+
+            let sourcesHtml =
+              "<div class='sources-header'><strong>참조 기사</strong></div>";
+
+            sources.forEach((source, index) => {
+              const title = source.title || "제목 없음";
+              const date = source.date || "날짜 없음";
+              const url = source.url;
+
+              sourcesHtml += `
+                            <div class="source-item" id="source-${index + 1}">
+                  <div class="source-number">${index + 1}</div>
+                  <div class="source-content">
+                    <div class="source-title">${title}</div>
+                    <div class="source-meta">${date}</div>
+                  ${
+                    url
+                      ? `<a href="${url}" target="_blank" class="source-link">원문보기 <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M14,3V5H17.59L7.76,14.83L9.17,16.24L19,6.41V10H21V3M19,19H5V5H12V3H5C3.89,3 3,3.89 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V12H19V19Z"/></svg></a>`
+                      : '<span class="source-link disabled">링크 없음</span>'
+                  }
+                  </div>
+                            </div>
+                        `;
+            });
+
+            sourcesDiv.innerHTML = sourcesHtml;
+            bubbleDiv.appendChild(sourcesDiv);
+          }
+        }
+
+        messageDiv.appendChild(bubbleDiv);
+        chatMessages.appendChild(messageDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+      }
+
+      function processFootnotesWithLinks(content, sources) {
+        // [숫자] 형태의 각주를 클릭 가능한 링크로 변환
+        return content.replace(/\[(\d+)\]/g, (match, number) => {
+          const sourceIndex = parseInt(number) - 1;
+          const source = sources[sourceIndex];
+
+          if (source && source.url) {
+            // 각주를 클릭하면 해당 기사 URL로 바로 이동
+            return `<a href="${source.url}" target="_blank" class="footnote" title="클릭하여 원문 보기: ${source.title}">[${number}]</a>`;
+          } else {
+            // URL이 없으면 스크롤만
+            return `<a href="#source-${number}" class="footnote" onclick="scrollToSource(${number})" title="참조 기사로 이동">[${number}]</a>`;
+          }
+        });
+      }
+
+      function scrollToSource(number) {
+        const sourceElement = document.getElementById(`source-${number}`);
+        if (sourceElement) {
+          sourceElement.scrollIntoView({ behavior: "smooth", block: "center" });
+          // 하이라이트 효과
+          sourceElement.classList.add("highlighted");
+          setTimeout(() => {
+            sourceElement.classList.remove("highlighted");
+          }, 2000);
+        }
+      }
+
+      function showLoading(isPerplexityMode = false) {
+        const loadingDiv = document.createElement("div");
+        loadingDiv.className = "message bot";
+        loadingDiv.id = "loading-message";
+
+        const bubbleDiv = document.createElement("div");
+        bubbleDiv.className = "message-bubble loading";
+
+        if (isPerplexityMode) {
+          bubbleDiv.innerHTML = `
+            <div class="flex items-center gap-2 mb-2">
+              <svg class="w-5 h-5 text-purple-500" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+              </svg>
+              <span class="font-semibold text-purple-600">AI 검색 강화 모드</span>
+            </div>
+            Perplexity AI를 활용하여 실시간 검색 중입니다...
+            <div class="text-sm text-gray-600 mt-1">
+              날짜 정보를 분석하고 최신 뉴스를 찾고 있습니다.
+            </div>
+            <div class="loading-dots mt-3">
+              <span class="inline-block w-2 h-2 bg-purple-500 rounded-full mr-1"></span>
+              <span class="inline-block w-2 h-2 bg-purple-500 rounded-full mr-1"></span>
+              <span class="inline-block w-2 h-2 bg-purple-500 rounded-full"></span>
+            </div>
+          `;
+        } else {
+          bubbleDiv.innerHTML = `
+            서울경제 뉴스 데이터베이스에서 관련 기사를 찾고 있습니다...
+            <div class="loading-dots mt-2">
+              <span class="inline-block w-2 h-2 bg-blue-500 rounded-full mr-1"></span>
+              <span class="inline-block w-2 h-2 bg-blue-500 rounded-full mr-1"></span>
+              <span class="inline-block w-2 h-2 bg-blue-500 rounded-full"></span>
+            </div>
+          `;
+        }
+
+        loadingDiv.appendChild(bubbleDiv);
+        chatMessages.appendChild(loadingDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+      }
+
+      function hideLoading() {
+        const loadingMessage = document.getElementById("loading-message");
+        if (loadingMessage) {
+          loadingMessage.remove();
+        }
+      }
+
+      async function sendMessage() {
+        const message = messageInput.value.trim();
+        if (!message) return;
+
+        // 사용자 메시지 추가
+        addMessage(message, true);
+        messageInput.value = "";
+        charCount.textContent = "0자";
+        messageInput.style.height = "24px";
+
+        // 버튼 비활성화 및 로딩 표시
+        sendButton.disabled = true;
+        sendButton.innerHTML = `
+          <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+        `;
+
+        // 날짜/시사성 키워드가 포함된 질문인지 감지
+        const dateKeywords = [
+          "어제",
+          "오늘",
+          "내일",
+          "지난주",
+          "이번주",
+          "작년",
+          "올해",
+          "최근",
+          "요즘",
+        ];
+        const hasDateKeyword = dateKeywords.some((keyword) =>
+          message.includes(keyword)
+        );
+
+        showLoading(hasDateKeyword);
+
+        try {
+          const response = await fetch(`${API_URL}/chat`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ question: message }),
+          });
+
+          const data = await response.json();
+
+          hideLoading();
+
+          if (response.ok) {
+            addMessage(data.answer, false, data.sources);
+          } else {
+            addMessage(
+              data.error ||
+                "서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.",
+              false,
+              null,
+              true
+            );
+          }
+        } catch (error) {
+          hideLoading();
+          addMessage(
+            "네트워크 오류가 발생했습니다. 인터넷 연결을 확인해주세요.",
+            false,
+            null,
+            true
+          );
+        }
+
+        // 버튼 복원
+        sendButton.disabled = false;
+        sendButton.innerHTML = `
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-5 w-5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5"></path>
+          </svg>
+        `;
+      }
+    </script>
+  </body>
+</html>
