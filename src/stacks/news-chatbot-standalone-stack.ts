@@ -217,7 +217,7 @@ export class NewsChatbotStandaloneStack extends Stack {
       exportName: "NewsChatbotWebsiteUrl",
     });
 
-    new CfnOutput(this, "WebsiteBucket", {
+    new CfnOutput(this, "WebsiteBucketName", {
       value: websiteBucket.bucketName,
       description: "S3 Bucket for Frontend",
       exportName: "NewsChatbotWebsiteBucket",
