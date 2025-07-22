@@ -163,18 +163,6 @@ export class NewsChatbotStandaloneStack extends Stack {
       versioned: false, // Disable versioning to prevent caching
     });
 
-    // Deploy frontend files to S3
-    new s3deploy.BucketDeployment(this, "DeployWebsite", {
-      sources: [s3deploy.Source.asset(path.join(__dirname, "../frontend"))],
-      destinationBucket: websiteBucket,
-      cacheControl: [
-        s3deploy.CacheControl.setPublic(),
-        s3deploy.CacheControl.noCache(), // Force no caching for now
-      ],
-      prune: true, // Remove old files
-      memoryLimit: 512,
-    });
-
     // CloudFront distribution for the website
     const distribution = new cloudfront.CloudFrontWebDistribution(this, "WebsiteDistribution", {
       originConfigs: [
@@ -182,7 +170,12 @@ export class NewsChatbotStandaloneStack extends Stack {
           s3OriginSource: {
             s3BucketSource: websiteBucket,
           },
-          behaviors: [{ isDefaultBehavior: true }],
+          behaviors: [{ 
+            isDefaultBehavior: true,
+            minTtl: Duration.seconds(0),
+            maxTtl: Duration.seconds(0),
+            defaultTtl: Duration.seconds(0),
+          }],
         },
       ],
       defaultRootObject: "index.html",
@@ -193,6 +186,20 @@ export class NewsChatbotStandaloneStack extends Stack {
           responsePagePath: "/index.html",
         },
       ],
+    });
+
+    // Deploy frontend files to S3
+    new s3deploy.BucketDeployment(this, "DeployWebsite", {
+      sources: [s3deploy.Source.asset(path.join(__dirname, "../frontend"))],
+      destinationBucket: websiteBucket,
+      distribution: distribution, // This will invalidate CloudFront cache
+      distributionPaths: ["/*"],  // Invalidate all paths
+      cacheControl: [
+        s3deploy.CacheControl.setPublic(),
+        s3deploy.CacheControl.noCache(), // Force no caching for now
+      ],
+      prune: true, // Remove old files
+      memoryLimit: 512,
     });
 
     // CloudFormation outputs
