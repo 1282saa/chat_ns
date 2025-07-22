@@ -7,12 +7,45 @@
 ```
 tools/
 ├── data_preprocessing/
-│   ├── bigkinds_to_markdown.py  # BigKinds API → Markdown/JSONL 변환기
-│   └── md_to_chunks.py          # 마크다운 → JSONL 변환기
-└── README.md                    # 이 파일
+│   ├── sedaily_bigkinds_collector.py  # 서울경제 전용 BigKinds 수집기
+│   ├── bigkinds_to_markdown.py        # BigKinds API → Markdown/JSONL 변환기  
+│   ├── md_to_chunks.py                # 마크다운 → JSONL 변환기
+│   ├── requirements.txt               # Python 의존성
+│   └── .env.example                   # 환경변수 예시
+└── README.md                          # 이 파일
 ```
 
 ## 🔧 도구 설명
+
+### `data_preprocessing/sedaily_bigkinds_collector.py` ⭐ 추천
+
+**용도**: 서울경제신문 전용 BigKinds 뉴스 수집 및 마크다운 변환
+
+**주요 기능**:
+- 서울경제신문만 선별 수집
+- 원본 API 구조 유지 (안정성)
+- 자동 마크다운 변환
+- S3 직접 업로드 (s3://seoul-economic-news-data-2025/news-data-md/)
+- 로컬 저장 옵션
+
+**사용법**:
+```bash
+cd tools/data_preprocessing
+
+# 환경 설정
+pip install -r requirements.txt
+cp .env.example .env
+# .env 파일 편집하여 API 키 설정
+
+# 로컬 테스트 (오늘 뉴스)
+python sedaily_bigkinds_collector.py --test --local-only
+
+# 특정 날짜 수집
+python sedaily_bigkinds_collector.py --date 2025-07-21
+
+# 어제 뉴스 수집 및 S3 업로드 (기본)
+python sedaily_bigkinds_collector.py
+```
 
 ### `data_preprocessing/bigkinds_to_markdown.py`
 

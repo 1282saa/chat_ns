@@ -91,61 +91,81 @@ def get_bigkinds_api_key() -> str:
 
 def fetch_bigkinds_news(api_key: str, start_date: str, end_date: str) -> List[Dict[str, Any]]:
     """
-    BigKinds API를 사용하여 뉴스 기사를 가져옵니다.
-    경제 관련 뉴스를 중심으로 수집합니다.
+    BigKinds API를 사용하여 서울경제신문 뉴스를 수집합니다.
     """
     try:
-        base_url = "https://www.bigkinds.or.kr/api/news/search.do"
+        base_url = "https://tools.kinds.or.kr/search/news"
         
-        # 경제 관련 키워드
-        keywords = [
-            "경제", "증시", "주식", "부동산", "금융", "기업", "산업", 
-            "투자", "수출", "수입", "GDP", "물가", "금리", "환율"
+        categories = {
+            "정치": "001000000",
+            "경제": "002000000", 
+            "사회": "003000000",
+            "문화": "004000000",
+            "국제": "005000000",
+            "지역": "006000000",
+            "스포츠": "007000000",
+            "IT_과학": "008000000",
+        }
+        
+        fields = [
+            "news_id", "title", "content", "byline", "publisher_name",
+            "published_at", "provider_link_page",
+            "category", "category_code", "year", "month"
         ]
         
         all_articles = []
         
-        for keyword in keywords:
-            params = {
-                'access_key': api_key,
-                'argument': json.dumps({
-                    'query': keyword,
-                    'byLine': '',
-                    'searchFilterType': 'detail',
-                    'filterList': [],
-                    'dateFilterType': 'select',
-                    'startDate': start_date,
-                    'endDate': end_date,
-                    'categoryFilter': ['정치>정치일반', '경제>경제일반', '경제>증권', '경제>부동산'],
-                    'categoryFilterType': 'include',
-                    'sort': {'sortMethod': 'date', 'sortOrder': 'desc'},
-                    'hilight': 200,
-                    'returnFrom': 0,
-                    'returnSize': 50,
-                    'fields': ['byline', 'category', 'content', 'date', 'title', 'url']
-                }),
-                'kind': 'news'
-            }
+        for category_name, category_code in categories.items():
+            offset = 0
+            size = 1000
             
-            response = requests.get(base_url, params=params, timeout=30)
-            response.raise_for_status()
-            
-            data = response.json()
-            
-            if data.get('returnCode') == '200' and 'resultList' in data:
-                articles = data['resultList']
-                logger.info(f"Found {len(articles)} articles for keyword: {keyword}")
+            while True:
+                payload = {
+                    "access_key": api_key,
+                    "argument": {
+                        "query": "",
+                        "published_at": {
+                            "from": f"{start_date}T00:00:00",
+                            "until": f"{end_date}T23:59:59"
+                        },
+                        "provider": [
+                            "서울경제"  # 서울경제신문만 수집
+                        ],
+                        "category": [category_code],
+                        "sort": {"date": "desc"},
+                        "return_from": offset,
+                        "return_size": size,
+                        "fields": fields
+                    }
+                }
                 
-                for article in articles:
-                    # 중복 제거를 위해 URL을 기준으로 확인
-                    if not any(existing['url'] == article['url'] for existing in all_articles):
-                        all_articles.append(article)
+                response = requests.post(base_url, json=payload, timeout=30)
+                response.raise_for_status()
+                
+                ret = response.json()["return_object"]
+                batch = ret["documents"]
+                
+                if not batch:
+                    break
+                    
+                # URL 필드 정규화
+                for doc in batch:
+                    doc["url"] = doc.pop("provider_link_page", None)
+                    doc["category"] = category_name
+                
+                all_articles.extend(batch)
+                offset += len(batch)
+                
+                if offset >= ret["total_hits"]:
+                    break
+                
+                # API 호출 제한 대응
+                import time
+                time.sleep(0.5)
             
-            # API 호출 제한을 위한 잠시 대기
-            import time
-            time.sleep(1)
+            logger.info(f"Collected {len([a for a in all_articles if a.get('category') == category_name])} articles for {category_name}")
         
-        logger.info(f"Total unique articles collected: {len(all_articles)}")
+        logger.info(f"Total articles collected: {len(all_articles)}")
         return all_articles
         
     except Exception as e:
@@ -188,8 +208,8 @@ def save_articles_to_s3(articles: List[Dict[str, Any]]) -> int:
                 month = current_date.strftime('%m')
                 day = current_date.strftime('%d')
                 
-                # 파일 경로: YYYY/MM/DD/카테고리.md
-                s3_key = f"bigkinds-data/{year}/{month}/{day}/{category}.md"
+                # 파일 경로: news-data-md/YYYY/MM/DD/카테고리.md (S3 구조와 일치)
+                s3_key = f"news-data-md/{year}/{month}/{day}/{category}.md"
                 
                 s3_client.put_object(
                     Bucket=DATA_BUCKET_NAME,
@@ -208,7 +228,7 @@ def save_articles_to_s3(articles: List[Dict[str, Any]]) -> int:
                 logger.info(f"Saved {len(category_articles)} articles to S3: {s3_key}")
                 
                 # JSONL 형식도 함께 저장 (Knowledge Base 호환성)
-                jsonl_key = f"bigkinds-data/{year}/{month}/{day}/{category}.jsonl"
+                jsonl_key = f"news-data-md/{year}/{month}/{day}/{category}.jsonl"
                 jsonl_content = ""
                 
                 for article in category_articles:
