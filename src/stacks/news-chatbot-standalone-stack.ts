@@ -170,6 +170,7 @@ export class NewsChatbotStandaloneStack extends Stack {
         s3deploy.CacheControl.setPublic(),
         s3deploy.CacheControl.maxAge(Duration.hours(1)),
       ],
+      prune: true, // Remove old files
     });
 
     // CloudFront distribution for the website
