@@ -154,43 +154,87 @@ def fetch_bigkinds_news(api_key: str, start_date: str, end_date: str) -> List[Di
 
 def save_articles_to_s3(articles: List[Dict[str, Any]]) -> int:
     """
-    수집된 기사들을 Knowledge Base용 JSONL 형식으로 S3에 저장합니다.
+    수집된 기사들을 Knowledge Base용 마크다운 형식으로 S3에 저장합니다.
     """
     try:
         processed_count = 0
-        current_date = datetime.now().strftime('%Y-%m-%d')
+        current_date = datetime.now()
+        date_str = current_date.strftime('%Y-%m-%d')
         
+        # 카테고리별로 기사 그룹화
+        articles_by_category = {}
         for article in articles:
+            category = article.get('category', '기타')
+            if category not in articles_by_category:
+                articles_by_category[category] = []
+            articles_by_category[category].append(article)
+        
+        # 각 카테고리별로 마크다운 파일 생성
+        for category, category_articles in articles_by_category.items():
             try:
-                # 기사 데이터를 Knowledge Base 형식으로 변환
-                processed_article = process_article_for_knowledge_base(article)
+                # 마크다운 내용 생성
+                md_content = f"# {date_str} {category} 뉴스\n\n"
+                md_content += f"**수집일시**: {current_date.strftime('%Y-%m-%d %H:%M:%S')}\n"
+                md_content += f"**총 기사 수**: {len(category_articles)}개\n\n"
+                md_content += "---\n\n"
                 
-                if processed_article:
-                    # S3 키 생성 (날짜별로 구성)
-                    article_id = str(uuid.uuid4())
-                    s3_key = f"news-data/{current_date}/{article_id}.jsonl"
-                    
-                    # JSONL 형식으로 저장
-                    jsonl_content = json.dumps(processed_article, ensure_ascii=False)
-                    
-                    s3_client.put_object(
-                        Bucket=DATA_BUCKET_NAME,
-                        Key=s3_key,
-                        Body=jsonl_content.encode('utf-8'),
-                        ContentType='application/json',
-                        Metadata={
-                            'source': 'bigkinds-api',
-                            'collection_date': current_date,
-                            'article_date': processed_article.get('date', ''),
-                            'category': processed_article.get('category', '')
+                for idx, article in enumerate(category_articles, 1):
+                    # 기사를 마크다운 형식으로 변환
+                    md_article = convert_article_to_markdown(article, idx)
+                    md_content += md_article
+                
+                # S3에 마크다운 파일로 저장
+                year = current_date.strftime('%Y')
+                month = current_date.strftime('%m')
+                day = current_date.strftime('%d')
+                
+                # 파일 경로: YYYY/MM/DD/카테고리.md
+                s3_key = f"bigkinds-data/{year}/{month}/{day}/{category}.md"
+                
+                s3_client.put_object(
+                    Bucket=DATA_BUCKET_NAME,
+                    Key=s3_key,
+                    Body=md_content.encode('utf-8'),
+                    ContentType='text/markdown; charset=utf-8',
+                    Metadata={
+                        'source': 'bigkinds-api',
+                        'collection_date': date_str,
+                        'category': category,
+                        'article_count': str(len(category_articles))
+                    }
+                )
+                
+                processed_count += len(category_articles)
+                logger.info(f"Saved {len(category_articles)} articles to S3: {s3_key}")
+                
+                # JSONL 형식도 함께 저장 (Knowledge Base 호환성)
+                jsonl_key = f"bigkinds-data/{year}/{month}/{day}/{category}.jsonl"
+                jsonl_content = ""
+                
+                for article in category_articles:
+                    kb_doc = {
+                        "chunk": article.get("content", ""),
+                        "title": article.get("title", ""),
+                        "date": format_date(article.get('date', '')),
+                        "url": article.get("url", ""),
+                        "category": category,
+                        "publisher": article.get("byline", ""),
+                        "metadata": {
+                            "source": "BigKinds",
+                            "collection_timestamp": current_date.isoformat()
                         }
-                    )
-                    
-                    processed_count += 1
-                    logger.debug(f"Saved article to S3: {s3_key}")
+                    }
+                    jsonl_content += json.dumps(kb_doc, ensure_ascii=False) + "\n"
+                
+                s3_client.put_object(
+                    Bucket=DATA_BUCKET_NAME,
+                    Key=jsonl_key,
+                    Body=jsonl_content.encode('utf-8'),
+                    ContentType='application/x-ndjson; charset=utf-8'
+                )
                 
             except Exception as e:
-                logger.error(f"Failed to save individual article: {str(e)}")
+                logger.error(f"Failed to save articles for category {category}: {str(e)}")
                 continue
         
         logger.info(f"Successfully saved {processed_count} articles to S3")
@@ -199,6 +243,30 @@ def save_articles_to_s3(articles: List[Dict[str, Any]]) -> int:
     except Exception as e:
         logger.error(f"Failed to save articles to S3: {str(e)}")
         raise
+
+def convert_article_to_markdown(article: Dict[str, Any], idx: int) -> str:
+    """개별 기사를 마크다운 형식으로 변환합니다."""
+    md = f"### {idx}. {article.get('title', '제목 없음')}\n\n"
+    
+    # 메타데이터
+    md += f"**발행일**: {format_date(article.get('date', ''))}\n"
+    md += f"**URL**: {article.get('url', 'N/A')}\n"
+    md += f"**카테고리**: {article.get('category', 'N/A')}\n"
+    
+    if article.get('byline'):
+        md += f"**기자/출처**: {article['byline']}\n"
+    
+    md += "\n**내용**:\n"
+    
+    # 본문 내용
+    content = article.get('content', '내용 없음')
+    # 긴 줄 처리
+    content = content.replace('\n', '\n\n')
+    md += f"{content}\n\n"
+    
+    md += "---\n\n"
+    
+    return md
 
 def process_article_for_knowledge_base(article: Dict[str, Any]) -> Dict[str, Any]:
     """

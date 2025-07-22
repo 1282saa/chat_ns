@@ -7,15 +7,51 @@
 ```
 tools/
 ├── data_preprocessing/
-│   └── md_to_chunks.py        # 마크다운 → JSONL 변환기
-└── README.md                  # 이 파일
+│   ├── bigkinds_to_markdown.py  # BigKinds API → Markdown/JSONL 변환기
+│   └── md_to_chunks.py          # 마크다운 → JSONL 변환기
+└── README.md                    # 이 파일
 ```
 
 ## 🔧 도구 설명
 
+### `data_preprocessing/bigkinds_to_markdown.py`
+
+**용도**: BigKinds API를 통해 뉴스 데이터를 수집하고 마크다운 및 Knowledge Base 형식으로 변환
+
+**주요 기능**:
+- BigKinds API를 통한 뉴스 데이터 수집
+- JSON → Markdown 변환
+- Knowledge Base용 JSONL 생성
+- 날짜별·카테고리별 파일 구조 생성
+
+**사용법**:
+```bash
+cd tools/data_preprocessing
+
+# 환경변수 설정
+export BIGKINDS_KEY="your-api-key"
+
+# 기본 사용법 (모든 형식으로 출력)
+python bigkinds_to_markdown.py \
+    --start-date 2023-02-17 \
+    --end-date 2025-07-20 \
+    --output-format all \
+    --output-dir output
+
+# 마크다운만 생성
+python bigkinds_to_markdown.py \
+    --output-format markdown \
+    --output-dir markdown_output
+
+# Knowledge Base용 JSONL만 생성
+python bigkinds_to_markdown.py \
+    --output-format jsonl \
+    --output-dir kb_output
+```
+
 ### `data_preprocessing/md_to_chunks.py`
 
-**용도**: 마크다운 형식의 뉴스 파일을 Bedrock Knowledge Base용 JSONL 형식으로 변환
+**용도**: 기존 마크다운 형식의 뉴스 파일을 Bedrock Knowledge Base용 JSONL 형식으로 변환
 
 **주요 기능**:
 - 마크다운 뉴스 파일 파싱
